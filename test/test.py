@@ -44,17 +44,30 @@ class WinPollster(object):
     def __init__(self):
         return
 
+    def sample(self):
+        data_dict = {}
+        return
+
     def get_cpu(self):
         data_dict = {}
         cpu_usage_total = 0
         
-        for cpu in self._c.Win32_Processor():
-            device = cpu.DeviceID.lower()
-            data_dict[device] = {'volume':float(cpu.LoadPercentage), 'unit':'%'}
-            cpu_usage_total += float(cpu.LoadPercentage)
+        size = ULONG(1)
+        windows_ntdll.NtQuerySystemInformation(8, 0, 0, byref(size))
+        count = size.value/sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION)
+
+        sppis = (SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION * count)()
+        windows_ntdll.NtQuerySystemInformation(8, byref(sppis), sizeof(sppis), byref(size))
+
+        for i in range(0, count):
+            load = sppis[i].UserTime + sppis[i].KernelTime
+            load = float(load * 100) / float(load+ sppis[i].IdleTime)
+            data_dict['cpu' + str(i)] = {'volume': round(load, 2), 'unit':'%'}
+            cpu_usage_total += load
 
         data_dict['cpu'] = {'volume':cpu_usage_total/len(data_dict), 'unit':'%'}
         return {'data':data_dict, 'timestamp':time.asctime(time.localtime())}
+        
 
     def get_mem(self):
         data_dict = {}
