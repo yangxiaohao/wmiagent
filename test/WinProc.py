@@ -129,6 +129,14 @@ class WinProc(object):
         self.data['net']['bytes_in'] = 0
         self.data['net']['packets_out'] = 0
         self.data['net']['packets_in'] = 0
+        self.data['net']['rate_packets_out'] = 0
+        self.data['net']['rate_packets_in'] = 0
+        self.data['disk'] = {}
+        self.data['disk']['count'] = 0
+        self.data['disk']['total_space_free'] = 0
+        self.data['disk']['total_space_total'] = 0
+        self.data['disk']['total_rate_read'] = 0
+        self.data['disk']['total_rate_writen'] = 0
         
         self.cache['proc_current'] = {}
         self.cache['proc_last'] = {}
@@ -208,6 +216,7 @@ class WinProc(object):
         drives = windll.kernel32.GetLogicalDrives();
         driveid = ord('A')
         dict['disks'] = []
+        count = 0
         while drives != 0:
             if (drives & 1):
                 drive = chr(driveid);
@@ -228,8 +237,10 @@ class WinProc(object):
                     diskinfo = {'DriveName': drive +':','TotalNumberOfBytes': TotalNumberOfBytes.value, 'TotalNumberOfFreeBytes': TotalNumberOfFreeBytes.value, 'BytesRead':dp.BytesRead, 'BytesWritten':dp.BytesWritten}
                     
                     dict['disks'].append(diskinfo)
+                    count = count + 1
             drives = drives >> 1
             driveid = driveid + 1
+        dict['count'] = count
         self.cache['proc_current']['disk'] = dict
         return dict
 
@@ -260,24 +271,24 @@ class WinProc(object):
             if self.data['cpu']['count'] != dict['count']:
                 self.data['cpu']['cpus'] = []
                 self.data['cpu']['count'] = dict['count']
-                loadall = 0
+                total_load = 0
                 for cpu in dict['cpus']:
                     load = float(cpu['IdleTime']) / float(cpu['KernelTime'] + cpu['UserTime'])
                     load = 1 / ( 1 + load )
                     self.data['cpu']['cpus'].append( {'load': load} )
-                    loadall = loadall + load
-                self.data['cpu']['load'] = loadall / dict['count']
+                    total_load = total_load + load
+                self.data['cpu']['load'] = total_load / dict['count']
             # upate
             else:
-                loadall = 0
+                total_load = 0
                 for i in range(0, dict['count']):
                     cpu_current = self.cache['proc_current']['cpu']['cpus'][i]
                     cpu_last = self.cache['proc_last']['cpu']['cpus'][i]
                     load = float(cpu_current['IdleTime'] - cpu_last['IdleTime']) / float(cpu_current['KernelTime'] + cpu_current['UserTime'] - cpu_last['KernelTime'] - cpu_last['UserTime'] )
                     load = 1 / ( 1 + load )
                     self.data['cpu']['cpus'].append( {'load': load} )
-                    loadall = loadall + load
-                self.data['cpu']['load'] = loadall / dict['count'] 
+                    total_load = total_load + load
+                self.data['cpu']['load'] = total_load / dict['count'] 
             self.cache['proc_last']['cpu'] = dict
             
             
@@ -287,6 +298,8 @@ class WinProc(object):
         
             rate_out = 0
             rate_in = 0;
+            rate_packets_out = 0
+            rate_packets_in = 0;
             bytes_out = 0
             bytes_in = 0
             packets_out = 0
@@ -304,9 +317,13 @@ class WinProc(object):
             if not self.cache['proc_last'].has_key('net'):
                 rate_in = float(bytes_in)/timespan
                 rate_out = float(bytes_out)/timespan
+                rate_packets_in = float(packets_in)/timespan
+                rate_packets_out = float(packets_out)/timespan
             else:
                 rate_in = float(bytes_in - self.data['net']['bytes_in'])/timespan
                 rate_out = float(bytes_out - self.data['net']['bytes_out'])/timespan
+                rate_packets_in = float(packets_in - self.data['net']['packets_in'])/timespan
+                rate_packets_out = float(packets_out - self.data['net']['packets_out'])/timespan
 
             self.cache['proc_last']['net'] = dict
                 
@@ -316,7 +333,65 @@ class WinProc(object):
             self.data['net']['bytes_in'] = bytes_in
             self.data['net']['packets_out'] = packets_out
             self.data['net']['packets_in'] = packets_in
-        
+            self.data['net']['rate_packets_out'] = rate_packets_out
+            self.data['net']['rate_packets_in'] = rate_packets_in
+            
+        dict = self.cache['proc_current']['disk'];
+        timespan = dict['timestamp'] - self.data['timestamp']
+        if (timespan > 1):
+            
+            # init
+            if self.data['disk']['count'] != dict['count']:
+                self.data['disk']['disks'] = []
+                self.data['disk']['count'] = dict['count']
+
+                total_space_free = 0
+                total_space_total = 0
+                total_rate_read = 0
+                total_rate_writen = 0
+                
+                for disk in dict['disks']:
+                    space_free = disk['TotalNumberOfFreeBytes']
+                    space_total = disk['TotalNumberOfBytes']
+                    rate_read = float(disk['BytesRead'])/timespan 
+                    rate_writen = float(disk['BytesWritten'])/timespan 
+                    self.data['disk']['disks'].append( {'drive':disk['DriveName'], 'space_free':space_free, 'space_total':space_total, 'rate_read':rate_read, 'rate_writen':rate_writen} )
+                    total_space_free += space_free
+                    total_space_total += space_total
+                    total_rate_read += rate_read
+                    total_rate_writen += rate_writen
+                self.data['disk']['total_space_free'] = total_space_free
+                self.data['disk']['total_space_total'] = total_space_total
+                self.data['disk']['total_rate_read'] = total_rate_read
+                self.data['disk']['total_rate_writen'] = total_rate_writen
+            # upate
+            else:
+                total_space_free = 0
+                total_space_total = 0
+                total_rate_read = 0
+                total_rate_writen = 0
+                
+                total_load = 0
+                for i in range(0, dict['count']):
+                    disk_current = self.cache['proc_current']['disk']['disks'][i]
+                    disk_last = self.cache['proc_last']['disk']['disks'][i]
+                    
+                    space_free = disk_current['TotalNumberOfFreeBytes']
+                    space_total = disk_current['TotalNumberOfBytes']
+                    rate_read = float(disk_current['BytesRead'] - disk_last['BytesRead'])/timespan 
+                    rate_writen = float(disk_current['BytesWritten'] - disk_last['BytesWritten'])/timespan 
+                    self.data['disk']['disks'].append( {'space_free':space_free, 'space_total':space_total, 'rate_read':rate_read, 'rate_writen':rate_writen} )
+                    total_space_free += space_free
+                    total_space_total += space_total
+                    total_rate_read += rate_read
+                    total_rate_writen += rate_writen
+                self.data['disk']['total_space_free'] = total_space_free
+                self.data['disk']['total_space_total'] = total_space_total
+                self.data['disk']['total_rate_read'] = total_rate_read
+                self.data['disk']['total_rate_writen'] = total_rate_writen
+                
+            self.cache['proc_last']['disk'] = dict 
+            
         self.data['timestamp'] = time.time()
 
     def debug(self):
@@ -329,6 +404,9 @@ class WinProc(object):
         print 'NET:'
         print self.data['net']['rate_in']
         print self.data['net']['rate_out']
+        print 'DISK:'
+        print self.data['disk']['total_rate_read']
+        print self.data['disk']['total_rate_writen']
         print ''
 
 if __name__=='__main__':
@@ -344,5 +422,6 @@ if __name__=='__main__':
     wp.debug()
     time.sleep(3.2)
     wp.debug()
-    time.sleep(3.2)
-    wp.debug()
+    for i in range(0, 15):
+        time.sleep(3.2)
+        wp.debug()
