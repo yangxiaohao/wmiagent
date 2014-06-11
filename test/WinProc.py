@@ -147,16 +147,16 @@ class WinProc(object):
         dict['timestamp'] = time.time()
 
         size = ULONG(1)
-        windows_ntdll.NtQuerySystemInformation(8, 0, 0, byref(size))
+        sppis = (SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION * 16)()
+        windows_ntdll.NtQuerySystemInformation(8, byref(sppis), sizeof(sppis), byref(size))
         count = size.value/sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION)
         dict['count'] = int(count)
-        sppis = (SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION * count)()
-        windows_ntdll.NtQuerySystemInformation(8, byref(sppis), sizeof(sppis), byref(size))
 
         dict['cpus'] = []
         for i in range(0, count):
             cpuinfo = {'UserTime': sppis[i].UserTime, 'KernelTime': sppis[i].KernelTime, 'IdleTime': sppis[i].IdleTime}
             dict['cpus'].append(cpuinfo)
+        dict['count'] = count
         self.cache['proc_current']['cpu'] = dict
         return dict
 
@@ -223,8 +223,8 @@ class WinProc(object):
                 drive_path = '\\\\.\\' + drive +':'
                 
                 device_handle = windll.kernel32.CreateFileA(drive_path, 0, 0x01 | 0x02, 0, 0x03, 0, 0);
-                device_type = windll.kernel32.GetDriveTypeA(drive_path);
-                if (device_type == 1 and device_handle != -1):
+                device_type = windll.kernel32.GetDriveTypeA(drive_path + '\\');
+                if (device_type == 3 and device_handle != -1):
                     FreeBytesAvailable = ULARGE_INTEGER()
                     TotalNumberOfBytes = ULARGE_INTEGER()
                     TotalNumberOfFreeBytes = ULARGE_INTEGER()
@@ -235,7 +235,6 @@ class WinProc(object):
                     windll.kernel32.DeviceIoControl(device_handle, 458784, 0, 0, byref(dp), sizeof(dp), byref(size), 0);
                     windll.kernel32.GetDiskFreeSpaceExA(drive_path + '\\', byref(FreeBytesAvailable), byref(TotalNumberOfBytes), byref(TotalNumberOfFreeBytes));
                     diskinfo = {'DriveName': drive +':','TotalNumberOfBytes': TotalNumberOfBytes.value, 'TotalNumberOfFreeBytes': TotalNumberOfFreeBytes.value, 'BytesRead':dp.BytesRead, 'BytesWritten':dp.BytesWritten}
-                    
                     dict['disks'].append(diskinfo)
                     count = count + 1
             drives = drives >> 1
@@ -245,11 +244,13 @@ class WinProc(object):
         return dict
 
     def update(self):
+      
+        self.fetch_net()
         self.fetch_mem()
         self.fetch_cpu()
-        self.fetch_net()
         self.fetch_disk()
         
+        self.cache['proc_current']
         
         dict = self.cache['proc_current']['mem'];
         
