@@ -45,7 +45,7 @@ class PollManager(win32serviceutil.ServiceFramework):
         self.timeout=100
         while True:
             rc=win32event.WaitForSingleObject(self.hWaitStop,self.timeout)
-            
+            self._wp.update()
             if rc == win32event.WAIT_OBJECT_0:
                 break
             else:
