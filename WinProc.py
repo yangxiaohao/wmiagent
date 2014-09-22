@@ -203,7 +203,7 @@ class WinProc(object):
                 mi = MIB_IFROW()
                 mi.dwIndex = iaa.IfIndex;
                 windows_iphlpapi.GetIfEntry(byref(mi));
-                netinfo = {'AdapterName': iaa.AdapterName, 'FriendlyName': str(iaa.FriendlyName), 'dwInOctets': mi.dwInOctets, 'dwOutOctets': mi.dwOutOctets, 'dwInUcastPkts': mi.dwInUcastPkts, 'dwOutUcastPkts': mi.dwOutUcastPkts, 'dwInNUcastPkts': mi.dwInNUcastPkts, 'dwOutNUcastPkts': mi.dwOutNUcastPkts}
+                netinfo = {'AdapterName': iaa.AdapterName, 'FriendlyName': unicode(iaa.FriendlyName), 'dwInOctets': mi.dwInOctets, 'dwOutOctets': mi.dwOutOctets, 'dwInUcastPkts': mi.dwInUcastPkts, 'dwOutUcastPkts': mi.dwOutUcastPkts, 'dwInNUcastPkts': mi.dwInNUcastPkts, 'dwOutNUcastPkts': mi.dwOutNUcastPkts}
                 dict['nets'].append(netinfo)
                 count = count + 1
             
@@ -279,7 +279,7 @@ class WinProc(object):
                 self.data['cpu']['count'] = dict['count']
                 total_load = 0
                 for cpu in dict['cpus']:
-                    load = float(cpu['KernelTime'] + cpu['UserTime']) / float(cpu['IdleTime'])
+                    load = 1 - float(cpu['IdleTime']) / float(cpu['KernelTime'] + cpu['UserTime']) 
                     self.data['cpu']['cpus'].append( {'load': load} )
                     total_load = total_load + load
                 self.data['cpu']['load'] = total_load / dict['count']
@@ -289,7 +289,7 @@ class WinProc(object):
                 for i in range(0, dict['count']):
                     cpu_current = self.cache['proc_current']['cpu']['cpus'][i]
                     cpu_last = self.cache['proc_last']['cpu']['cpus'][i]
-                    load = float(cpu_current['KernelTime'] + cpu_current['UserTime'] - cpu_last['KernelTime'] - cpu_last['UserTime'] ) / float(cpu_current['IdleTime'] - cpu_last['IdleTime'])
+                    load = 1 - float(cpu_current['IdleTime'] - cpu_last['IdleTime']) / float(cpu_current['KernelTime'] + cpu_current['UserTime'] - cpu_last['KernelTime'] - cpu_last['UserTime'] )
                     self.data['cpu']['cpus'].append( {'load': load} )
                     total_load = total_load + load
                 self.data['cpu']['load'] = total_load / dict['count'] 
@@ -376,7 +376,6 @@ class WinProc(object):
                 total_rate_writen = 0
                 
                 total_load = 0
-                print timespan
                 for i in range(0, dict['count']):
                     disk_current = self.cache['proc_current']['disk']['disks'][i]
                     disk_last = self.cache['proc_last']['disk']['disks'][i]
