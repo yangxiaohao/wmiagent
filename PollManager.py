@@ -29,6 +29,8 @@ class PollManager(win32serviceutil.ServiceFramework):
     _wp = None
     _wr_url = None
     _poll_intvl = None
+    stoppending = False
+    counter = 0
 
     def __init__(self, args):
         win32serviceutil.ServiceFramework.__init__(self, args)
@@ -41,24 +43,27 @@ class PollManager(win32serviceutil.ServiceFramework):
     def SvcDoRun(self):
         import servicemanager
         servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,servicemanager.PYS_SERVICE_STARTED,(self._svc_name_, ''))
-
-        self.timeout=100
+ 
         while True:
-            rc=win32event.WaitForSingleObject(self.hWaitStop,self.timeout)
-            self._wp.update()
-            if rc == win32event.WAIT_OBJECT_0:
+            time.sleep(1)
+            self.counter = self.counter + 1;
+            if self.stoppending == True:
                 break
-            else:
+            elif self.counter >= self._poll_intvl:
+                self.counter = 0
+                self._wp.update()
                 wr_obj = self._wp.combine()
                 if wr_obj:
                     wr_data('%s%s' %(self._wr_url, 'setdata'), wr_obj)
-                time.sleep(self._poll_intvl)
+            else:
+                pass
+                
         return
 
 
     def SvcStop(self):
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        win32event.SetEvent(self.hWaitStop)
+        self.stoppending = True
         print 'Service stop'
         return
 
